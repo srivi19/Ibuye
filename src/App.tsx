@@ -489,6 +489,20 @@ export default function App() {
               Press <kbd className="font-sans px-1 py-0.5 bg-gray-100 border border-gray-200 rounded text-[10px]">Enter</kbd> to send, <kbd className="font-sans px-1 py-0.5 bg-gray-100 border border-gray-200 rounded text-[10px]">Shift + Enter</kbd> for new line
             </p>
           </div>
+          <div className="text-center mt-2 pt-2 border-t border-gray-100">
+            <p className="text-xs text-gray-400">
+              Built for{' '}
+              <a
+                href="https://gemini-hack-kigali.devpost.com/"
+                target="_blank"
+                rel="noreferrer"
+                className="font-semibold text-rwanda-blue hover:underline"
+              >
+                Gemini Hack Kigali
+              </a>
+              {' '}· April 1, 2026 · Built by <span className="font-medium text-gray-500">Vee (Srividya Narayanan)</span>
+            </p>
+          </div>
         </div>
       </footer>
 
