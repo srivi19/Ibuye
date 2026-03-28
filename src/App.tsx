@@ -94,7 +94,7 @@ export default function App() {
   // Create chat instance
   const chatRef = useRef(
     ai.chats.create({
-      model: 'gemini-2.0-flash',
+      model: 'gemini-2.0-flash-lite',
       config: {
         systemInstruction: SYSTEM_INSTRUCTION,
         temperature: 0.3,
@@ -105,7 +105,7 @@ export default function App() {
   /** Re-creates the chat session — called after errors to avoid a broken session */
   const resetChat = () => {
     chatRef.current = ai.chats.create({
-      model: 'gemini-2.0-flash',
+      model: 'gemini-2.0-flash-lite',
       config: { systemInstruction: SYSTEM_INSTRUCTION, temperature: 0.3 },
     });
   };
@@ -152,7 +152,7 @@ export default function App() {
       const prompt = `The current time in Kigali is ${kigaliTime}. Generate a dynamic welcome greeting for Ibuye. It should be welcoming, mention the time of day appropriately, and be bilingual (English/Kinyarwanda).`;
 
       const response = await ai.models.generateContent({
-        model: 'gemini-2.0-flash',
+        model: 'gemini-2.0-flash-lite',
         contents: prompt,
         config: {
           responseMimeType: 'application/json',
@@ -209,7 +209,7 @@ export default function App() {
     try {
       const prompt = `Generate 5 common FAQ items for Irembo services (e.g., National ID, Driving License, Birth Certificate, Land Titles, Criminal Record).`;
       const response = await ai.models.generateContent({
-        model: 'gemini-2.0-flash',
+        model: 'gemini-2.0-flash-lite',
         contents: prompt,
         config: {
           systemInstruction: FAQ_SYSTEM_INSTRUCTION,
