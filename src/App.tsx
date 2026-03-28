@@ -11,7 +11,13 @@ function cn(...inputs: ClassValue[]) {
 }
 
 // Initialize Gemini API
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY ?? '' });
+
+/** Returns true when the key looks like a real key (not missing/placeholder) */
+function isApiKeyConfigured() {
+  return !!GEMINI_API_KEY && GEMINI_API_KEY !== 'MY_GEMINI_API_KEY' && GEMINI_API_KEY.length > 10;
+}
 
 const SYSTEM_INSTRUCTION = `
 You are "Ibuye," a specialized AI assistant designed for the Gemini Hack Kigali. Your goal is to help Rwandan citizens understand and navigate government services (like ID applications, land titles, or birth certificates).
@@ -91,10 +97,18 @@ export default function App() {
       model: 'gemini-2.0-flash',
       config: {
         systemInstruction: SYSTEM_INSTRUCTION,
-        temperature: 0.3, // Keep it focused and factual
+        temperature: 0.3,
       },
     })
   );
+
+  /** Re-creates the chat session — called after errors to avoid a broken session */
+  const resetChat = () => {
+    chatRef.current = ai.chats.create({
+      model: 'gemini-2.0-flash',
+      config: { systemInstruction: SYSTEM_INSTRUCTION, temperature: 0.3 },
+    });
+  };
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -249,7 +263,6 @@ export default function App() {
 
     try {
       const response = await chatRef.current.sendMessage({ message: userMessage });
-      
       setMessages((prev) => [
         ...prev,
         {
@@ -260,14 +273,18 @@ export default function App() {
       ]);
     } catch (error) {
       console.error('Error sending message:', error);
+      // Extract a readable error message to show in the chat
+      const errMsg = error instanceof Error ? error.message : String(error);
       setMessages((prev) => [
         ...prev,
         {
           id: (Date.now() + 1).toString(),
           role: 'model',
-          text: 'I apologize, but I encountered an error connecting to the service. Please try again.',
+          text: `⚠️ **Error:** ${errMsg}\n\nIf this says _API key not valid_, please check that your \`.env\` file contains a real Gemini API key.`,
         },
       ]);
+      // Reset the chat session so future messages aren't stuck in a broken state
+      resetChat();
     } finally {
       setIsLoading(false);
     }
@@ -354,6 +371,14 @@ export default function App() {
           <div className="bg-rwanda-green flex-[0.5]"></div>
         </div>
       </header>
+
+      {/* API Key Warning Banner */}
+      {!isApiKeyConfigured() && (
+        <div className="bg-red-50 border-b border-red-200 px-4 py-3 text-center text-sm font-medium text-red-700">
+          ⚠️ <strong>API key not configured.</strong> Add your <code className="bg-red-100 px-1 rounded">GEMINI_API_KEY</code> to the <code className="bg-red-100 px-1 rounded">.env</code> file and restart the dev server.{' '}
+          <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" className="underline font-semibold">Get a free key →</a>
+        </div>
+      )}
 
       {/* Dynamic Greeting Banner */}
       {dynamicGreeting && (
