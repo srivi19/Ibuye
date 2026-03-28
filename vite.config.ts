@@ -8,7 +8,10 @@ export default defineConfig(({mode}) => {
   return {
     plugins: [react(), tailwindcss()],
     define: {
-      'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY),
+      // Read from .env file locally; fall back to actual process.env for Railway/CI
+      'process.env.GEMINI_API_KEY': JSON.stringify(
+        env.GEMINI_API_KEY || process.env.GEMINI_API_KEY
+      ),
     },
     resolve: {
       alias: {
