@@ -74,6 +74,7 @@ export default function App() {
   const [isFaqOpen, setIsFaqOpen] = useState(false);
   const [faqs, setFaqs] = useState<FAQ[]>([]);
   const [isFaqLoading, setIsFaqLoading] = useState(false);
+  const [faqError, setFaqError] = useState(false);
 
   // Rwanda Info State
   const [isRwandaOpen, setIsRwandaOpen] = useState(false);
@@ -130,12 +131,12 @@ export default function App() {
       // 1. Get current Kigali Time
       const kigaliTime = new Intl.DateTimeFormat('en-GB', {
         timeStyle: 'short',
-        timeZone: 'Africa/Kigali'
+        timeZone: 'Africa/Kigali',
       }).format(new Date());
 
       // 2. Ask Gemini for the greeting
-      const prompt = `The current time in Kigali is ${kigaliTime}. Generate my dynamic welcome greeting for Ibuye. It should be welcoming, mention the time of day appropriately, and be bilingual (English/Kinyarwanda).`;
-      
+      const prompt = `The current time in Kigali is ${kigaliTime}. Generate a dynamic welcome greeting for Ibuye. It should be welcoming, mention the time of day appropriately, and be bilingual (English/Kinyarwanda).`;
+
       const response = await ai.models.generateContent({
         model: 'gemini-2.0-flash',
         contents: prompt,
@@ -146,31 +147,40 @@ export default function App() {
             properties: {
               voice_text: {
                 type: Type.STRING,
-                description: "The text to be spoken aloud. Keep it simple and phonetic for English TTS.",
+                description: 'The text to be spoken aloud. Keep it simple and phonetic for English TTS.',
               },
               display_text: {
                 type: Type.STRING,
-                description: "The text to be displayed on the screen.",
-              }
+                description: 'The text to be displayed on the screen.',
+              },
             },
-            required: ["voice_text", "display_text"]
-          }
-        }
+            required: ['voice_text', 'display_text'],
+          },
+        },
       });
 
       if (response.text) {
         const data = JSON.parse(response.text);
-        
-        // 3. The "Result" - Speaking the dynamic text
-        const speech = new SpeechSynthesisUtterance(data.voice_text);
-        speech.lang = 'en-US'; 
-        window.speechSynthesis.speak(speech);
-
-        // 4. Update your UI
+        // Speak it (best-effort — may be silent if browser blocks autoplay)
+        try {
+          const speech = new SpeechSynthesisUtterance(data.voice_text);
+          speech.lang = 'en-US';
+          window.speechSynthesis.speak(speech);
+        } catch (_) {
+          // TTS unavailable — display text still shown
+        }
         setDynamicGreeting(data.display_text);
+      } else {
+        throw new Error('Empty response from Gemini');
       }
     } catch (error) {
-      console.error("Failed to generate dynamic greeting:", error);
+      console.error('Failed to generate dynamic greeting:', error);
+      // Fallback: show a static greeting so something is always visible
+      const kigaliHour = new Date(
+        new Date().toLocaleString('en-US', { timeZone: 'Africa/Kigali' })
+      ).getHours();
+      const timeOfDay = kigaliHour < 12 ? 'morning' : kigaliHour < 17 ? 'afternoon' : 'evening';
+      setDynamicGreeting(`Good ${timeOfDay}! Muraho! Welcome to Ibuye — your guide to Rwandan government services. / Murakaza neza kuri Ibuye!`);
     } finally {
       setIsGreetingLoading(false);
     }
@@ -179,8 +189,9 @@ export default function App() {
   const loadFaqs = async () => {
     setIsFaqOpen(true);
     if (faqs.length > 0) return; // Already loaded
-    
+
     setIsFaqLoading(true);
+    setFaqError(false);
     try {
       const prompt = `Generate 5 common FAQ items for Irembo services (e.g., National ID, Driving License, Birth Certificate, Land Titles, Criminal Record).`;
       const response = await ai.models.generateContent({
@@ -189,27 +200,36 @@ export default function App() {
         config: {
           systemInstruction: FAQ_SYSTEM_INSTRUCTION,
           responseMimeType: 'application/json',
+          // Gemini requires an object as the root schema — array is wrapped in { faqs: [...] }
           responseSchema: {
-            type: Type.ARRAY,
-            items: {
-              type: Type.OBJECT,
-              properties: {
-                id: { type: Type.NUMBER },
-                category: { type: Type.STRING },
-                question: { type: Type.STRING },
-                answer: { type: Type.STRING }
+            type: Type.OBJECT,
+            properties: {
+              faqs: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    id: { type: Type.NUMBER },
+                    category: { type: Type.STRING },
+                    question: { type: Type.STRING },
+                    answer: { type: Type.STRING },
+                  },
+                  required: ['id', 'category', 'question', 'answer'],
+                },
               },
-              required: ["id", "category", "question", "answer"]
-            }
-          }
-        }
+            },
+            required: ['faqs'],
+          },
+        },
       });
-      
+
       if (response.text) {
-        setFaqs(JSON.parse(response.text));
+        const data = JSON.parse(response.text);
+        setFaqs(data.faqs ?? []);
       }
     } catch (error) {
-      console.error("Failed to load FAQs:", error);
+      console.error('Failed to load FAQs:', error);
+      setFaqError(true);
     } finally {
       setIsFaqLoading(false);
     }
@@ -588,9 +608,24 @@ export default function App() {
                   <Loader2 className="w-8 h-8 text-rwanda-blue animate-spin" />
                   <p>Loading frequently asked questions...</p>
                 </div>
+              ) : faqError ? (
+                <div className="flex flex-col items-center justify-center h-40 gap-3 text-center">
+                  <p className="text-red-500 font-medium">Failed to load the knowledge base.</p>
+                  <p className="text-sm text-gray-400">Check your API key or internet connection.</p>
+                  <button
+                    onClick={() => { setFaqError(false); setFaqs([]); loadFaqs(); }}
+                    className="mt-2 px-4 py-2 bg-rwanda-blue text-white text-sm rounded-full hover:bg-blue-600 transition-colors"
+                  >
+                    Retry
+                  </button>
+                </div>
               ) : (
                 <div className="space-y-6">
-                  {faqs.map((faq) => (
+                  {faqs.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center h-40 gap-2 text-gray-400 text-sm">
+                      <p>No results found. Try closing and reopening.</p>
+                    </div>
+                  ) : faqs.map((faq) => (
                     <div key={faq.id} className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow">
                       <div className="inline-block px-2 py-1 bg-blue-50 text-rwanda-blue text-xs font-semibold rounded-md mb-3">
                         {faq.category}
